@@ -57,7 +57,7 @@ with col1:
     st.subheader("💡 냉철한 관점")
     st.info("환율 1,350원 돌파 여부와 VIX 20 돌파 여부를 핵심 지표로 체크하세요.")
     # 링크 형식을 안전하게 수정했습니다
-    st.markdown("[🔗 네이버 증권-수급 확인](https://finance.naver.com/sise/sise_trans_stat.naver)")
+    st.markdown("https://finance.naver.com/")
 
 with col2:
     st.subheader("🔗 주요 지표 뉴스")
