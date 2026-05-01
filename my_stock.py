@@ -3,22 +3,24 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime
 
-# 1. 페이지 설정 및 디자인
-st.set_page_config(page_title="Daniel Global Macro Dashboard", layout="wide")
+# 1. 페이지 설정 및 모바일 가독성 최적화
+st.set_page_config(page_title="Daniel Macro & Commodity", layout="wide")
 st.markdown("""
     <style>
-    [data-testid="stMetricValue"] { font-size: 22px; font-weight: bold; }
-    .stAlert { padding: 10px; border-radius: 8px; }
+    [data-testid="stMetricValue"] { font-size: 20px; font-weight: bold; }
+    .stSuccess { background-color: #e6f4ea; border-radius: 10px; padding: 15px; }
+    .stInfo { border-radius: 10px; padding: 15px; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 데이터 가져오기 함수 (실시간 연동)
-@st.cache_data(ttl=300) # 5분마다 갱신
-def get_macro_data():
+# 2. 데이터 호출 함수 (나스닥 종합 및 원자재 추가)
+@st.cache_data(ttl=300)
+def get_extended_data():
     tickers = {
-        "S&P 500": "^GSPC", "다우존스": "^DJI", "나스닥 100": "^NDX",
-        "러셀 2000": "^RUT", "필라 반도체": "^SOX", "코스피": "^KS11",
-        "코스닥": "^KQ11", "환율": "USDKRW=X", "WTI유": "CL=F", "VIX": "^VIX"
+        "나스닥 종합": "^IXIC", "S&P 500": "^GSPC", "다우존스": "^DJI",
+        "필라 반도체": "^SOX", "러셀 2000": "^RUT", "코스피": "^KS11",
+        "코스닥": "^KQ11", "금 (Gold)": "GC=F", "은 (Silver)": "SI=F",
+        "구리 (Copper)": "HG=F", "환율": "USDKRW=X", "WTI유": "CL=F", "VIX": "^VIX"
     }
     results = []
     for name, symbol in tickers.items():
@@ -34,65 +36,59 @@ def get_macro_data():
         except: continue
     return results
 
-# 3. 화면 구성
-st.title("🌐 Daniel's 글로벌 매크로 상황실")
-st.write(f"최종 동기화: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+# 3. 화면 타이틀
+st.title("🏛️ Daniel's 글로벌 매크로 & 원자재 상황실")
+st.write(f"최종 업데이트: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-# 메인 지수 그리드
-data = get_macro_data()
-col_idx = st.columns(5)
-for i, item in enumerate(data[:5]):
-    col_idx[i].metric(label=item['name'], value=f"{item['price']:,.2f}", delta=f"{item['change']:.2f}%")
+# 4. 주요 지수 및 원자재 메트릭 (3줄 배치)
+all_data = get_extended_data()
+rows = [all_data[i:i+5] for i in range(0, len(all_data), 5)]
 
-col_idx2 = st.columns(5)
-for i, item in enumerate(data[5:]):
-    col_idx2[i].metric(label=item['name'], value=f"{item['price']:,.2f}", delta=f"{item['change']:.2f}%")
+for row in rows:
+    cols = st.columns(len(row))
+    for i, item in enumerate(row):
+        cols[i].metric(label=item['name'], value=f"{item['price']:,.2f}", delta=f"{item['change']:.2f}%")
 
 st.divider()
 
-# 4. 핵심 매크로 지표 섹션 (Fear & Greed, FedWatch)
-col_macro, col_supply = st.columns([1.2, 1])
+# 5. 매크로 심층 분석 섹션 (CME 페드워치 세분화)
+col_fed, col_trend = st.columns([1.2, 1])
 
-with col_macro:
-    st.subheader("🚨 핵심 시장 심리 & 금리 전망")
+with col_fed:
+    st.subheader("🏛️ CME FedWatch 지수 리스트")
+    st.write("연준의 금리 결정을 예측하는 핵심 지표들입니다.")
     
-    # 공포와 탐욕 지수 및 페드워치는 외부 사이트 실시간 연동이 가장 정확합니다.
-    st.info("💡 **시장의 심장박동을 확인하세요**")
+    # 페드워치의 주요 지표 종류를 설명과 함께 배치
+    with st.expander("📌 CME FedWatch 주요 확인 지수 종류"):
+        st.markdown("""
+        *   **Target Rate Probabilities:** 다음 FOMC 회의에서의 금리 동결/인상/인하 확률
+        *   **Historical View:** 시간에 따른 금리 예측치의 변화 추이
+        *   **Dot Plot:** 연준 위원들의 향후 금리 전망 점도표
+        *   **Treasury Yields:** 국채 수익률 곡선과의 비교 데이터
+        """)
     
-    # 직관적인 버튼형 링크 배치
     st.markdown("""
-    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-        <a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank" style="text-decoration: none;">
-            <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; color: black; border: 1px solid #ddd;">
-                🔥 <b>공포와 탐욕 지수 (CNN)</b><br>시장의 과열/공포 실시간 확인
-            </div>
-        </a>
-        <a href="https://www.cmegroup.com/markets/interest-rates/target-rate-probabilities.html" target="_blank" style="text-decoration: none;">
-            <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; color: black; border: 1px solid #ddd;">
-                🏛️ <b>CME 페드워치 (금리 전망)</b><br>연준의 다음 금리 결정 확률
-            </div>
-        </a>
-    </div>
+    <a href="https://www.cmegroup.com/markets/interest-rates/target-rate-probabilities.html" target="_blank">
+        <button style="width:100%; padding:10px; background-color:#007bff; color:white; border:none; border-radius:5px; cursor:pointer;">
+            🚀 실시간 CME FedWatch 도구 바로가기
+        </button>
+    </a>
     """, unsafe_allow_html=True)
-    
-    st.write("")
-    st.caption("※ 위 지표들은 데이터 보안 정책상 직접 임베딩보다 공식 사이트 실시간 확인이 가장 정확합니다.")
 
-with col_supply:
-    st.subheader("🎯 수급 집중 포착 (3일 연속)")
+with col_trend:
+    st.subheader("🎯 3일 연속 수급 유입 (추세)")
     idx = 0
-    for item in data:
+    for item in all_data:
         if item['is_buy']:
-            st.success(f"✅ **{item['name']}**: 3일 연속 수급 유입 중")
+            st.success(f"✅ **{item['name']}**")
             idx += 1
-    if idx == 0:
-        st.warning("현재 수급 집중 지수 없음 (보수적 접근)")
+    if idx == 0: st.warning("현재 3일 연속 상승 지표 없음")
 
 st.divider()
 
-# 5. 수급 및 뉴스 연결
-st.subheader("🔗 실시간 상세 데이터")
+# 6. 공포 탐욕 및 수급 링크
+st.subheader("🔗 전략 보조 지표")
 l1, l2, l3 = st.columns(3)
-l1.markdown("[📊 코스피/코스닥 수급](https://finance.naver.com/sise/sise_trans_stat.naver)")
-l2.markdown("[📰 인베스팅 경제 캘린더](https://kr.investing.com/economic-calendar/)")
-l3.markdown("[📺 소셜 미디어 실시간 트렌드](https://trends.google.com/trends/trendingsearches/realtime?geo=KR)")
+with l1: st.markdown("[🔥 공포와 탐욕 지수](https://edition.cnn.com/markets/fear-and-greed)")
+with l2: st.markdown("[📊 국내 시장 수급 (네이버)](https://finance.naver.com/sise/sise_trans_stat.naver)")
+with l3: st.markdown("[📈 인베스팅 경제 캘린더](https://kr.investing.com/economic-calendar/)")
