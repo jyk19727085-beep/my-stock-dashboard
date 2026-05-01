@@ -62,4 +62,4 @@ with col1:
 with col2:
     st.subheader("🔗 주요 지표 뉴스")
     st.markdown("[📊 인베스팅닷컴 경제 캘린더](https://kr.investing.com/economic-calendar/)")
-    st.markdownst.markdown("[🔗 네이버 증권-수급 확인](https://finance.naver.com/sise/sise_trans_stat.naver)")
+    st.markdown("[📰 네이버 증권 주요뉴스](https://finance.naver.com/news/mainnews.naver)")
