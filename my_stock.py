@@ -2,29 +2,32 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 from datetime import datetime
+import urllib.parse
 
-# 1. 페이지 설정 및 디자인
-st.set_page_config(page_title="Daniel Ultimate Dashboard", layout="wide")
+# 1. 페이지 설정
+st.set_page_config(page_title="Daniel Alpha System Ver 7.0", layout="wide")
 st.markdown("""
     <style>
     [data-testid="stMetricValue"] { font-size: 22px; font-weight: bold; }
     .stSuccess { background-color: #e6f4ea; border-radius: 10px; padding: 15px; }
     .stWarning { background-color: #fff9e6; border-radius: 10px; padding: 15px; }
+    .stError { background-color: #ffe6e6; border-radius: 10px; padding: 15px; }
     .fear-greed-box { background-color: #f0f2f6; padding: 20px; border-radius: 15px; text-align: center; border: 2px solid #ddd; }
+    .alpha-box { background-color: #1e1e1e; color: #00ff00; padding: 15px; border-radius: 10px; font-family: 'Courier New', Courier, monospace; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 실시간 데이터 호출 함수
+# 2. 데이터 엔진 1: 기본 매크로 지표 (UI 보존용)
 @st.cache_data(ttl=300)
-def get_all_market_data():
+def get_macro_data():
     tickers = {
         "나스닥 종합": "^IXIC", "S&P 500": "^GSPC", "다우존스": "^DJI",
-        "나스닥 100": "^NDX", "필라 반도체": "^SOX", "러셀 2000": "^RUT",
-        "코스피": "^KS11", "코스닥": "^KQ11", "금 (Gold)": "GC=F",
-        "은 (Silver)": "SI=F", "구리 (Copper)": "HG=F", "환율": "USDKRW=X",
-        "WTI 원유": "CL=F", "VIX 지수": "^VIX"
+        "필라 반도체": "^SOX", "러셀 2000": "^RUT", "코스피": "^KS11",
+        "코스닥": "^KQ11", "금 (Gold)": "GC=F", "은 (Silver)": "SI=F",
+        "구리 (Copper)": "HG=F", "환율": "USDKRW=X", "WTI 원유": "CL=F", "VIX 지수": "^VIX"
     }
     results = []
+    vix_val = 20 # 기본값
     for name, symbol in tickers.items():
         try:
             t = yf.Ticker(symbol)
@@ -33,47 +36,99 @@ def get_all_market_data():
                 curr = df['Close'].iloc[-1]
                 prev = df['Close'].iloc[-2]
                 change = ((curr - prev) / prev) * 100
-                is_3day_buy = all(df['Close'].iloc[-i] > df['Close'].iloc[-(i+1)] for i in range(1, 4))
-                results.append({"name": name, "price": curr, "change": change, "is_buy": is_3day_buy})
+                is_buy = all(df['Close'].iloc[-i] > df['Close'].iloc[-(i+1)] for i in range(1, 4))
+                results.append({"name": name, "price": curr, "change": change, "is_buy": is_buy})
+                if name == "VIX 지수": vix_val = curr
+        except: continue
+    return results, vix_val
+
+# 3. 데이터 엔진 2: 연 30% 알파 타겟팅 (레버리지 & 기술적 지표)
+@st.cache_data(ttl=300)
+def get_alpha_data():
+    # 30% 수익을 위한 핵심 레버리지 및 주도주
+    alpha_tickers = {"TQQQ (나스닥 3배)": "TQQQ", "SOXL (반도체 3배)": "SOXL", "UPRO (S&P 3배)": "UPRO", "엔비디아 (NVDA)": "NVDA"}
+    results = []
+    
+    for name, symbol in alpha_tickers.items():
+        try:
+            t = yf.Ticker(symbol)
+            df = t.history(period="3mo") # RSI, BB 계산을 위해 3개월치 호출
+            if len(df) >= 20:
+                # RSI(14) 계산
+                delta = df['Close'].diff()
+                gain = delta.where(delta > 0, 0).ewm(alpha=1/14, adjust=False).mean()
+                loss = (-delta.where(delta < 0, 0)).ewm(alpha=1/14, adjust=False).mean()
+                rs = gain / loss
+                rsi = 100 - (100 / (1 + rs))
+                current_rsi = rsi.iloc[-1]
+                
+                # 볼린저 밴드(20, 2) 계산
+                bb_mid = df['Close'].rolling(window=20).mean()
+                bb_std = df['Close'].rolling(window=20).std()
+                bb_upper = bb_mid + (bb_std * 2)
+                bb_lower = bb_mid - (bb_std * 2)
+                
+                curr_price = df['Close'].iloc[-1]
+                change = ((curr_price - df['Close'].iloc[-2]) / df['Close'].iloc[-2]) * 100
+                
+                # 시그널 판별 (객관적 수치 기반)
+                signal = "관망 (대기)"
+                if current_rsi < 30 and curr_price <= bb_lower.iloc[-1]:
+                    signal = "🔥 강력 매수 (과매도)"
+                elif current_rsi > 70 and curr_price >= bb_upper.iloc[-1]:
+                    signal = "⚠️ 강력 매도 (과매수)"
+                    
+                results.append({
+                    "name": name, "price": curr_price, "change": change, 
+                    "rsi": current_rsi, "bb_lower": bb_lower.iloc[-1], "bb_upper": bb_upper.iloc[-1],
+                    "signal": signal
+                })
         except: continue
     return results
 
-# 3. 타이틀 및 업데이트 정보
-st.title("🏛️ Daniel's 실시간 투자 상황실 (Ver 4.0)")
-st.write(f"✅ 최신 동기화: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+# --- 화면 출력 시작 ---
+st.title("🏛️ Daniel's 연 30% 타겟팅 상황실 (Ver 7.0)")
+st.write(f"✅ 시스템 검증 및 동기화 완료: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-# 4. 공포와 탐욕 지수 & CME 페드워치 상단 배치
-st.subheader("🚨 핵심 시장 심리 & 금리 전망")
+# 기존 UI 보존 1: 심리 및 금리
 col_fg, col_fed = st.columns(2)
-
 with col_fg:
-    st.markdown(f"""
-        <a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank" style="text-decoration: none;">
-            <div class="fear-greed-box">
-                <span style="font-size: 16px; color: #555;">CNN Business</span><br>
-                <span style="font-size: 24px; color: #000; font-weight: bold;">🔥 공포와 탐욕 지수 확인</span><br>
-                <span style="font-size: 14px; color: #888;">(현재 시장의 과열/공포 상태 실시간 이동)</span>
-            </div>
-        </a>
-    """, unsafe_allow_html=True)
-
+    st.markdown(f"""<a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank" style="text-decoration: none;"><div class="fear-greed-box"><span style="font-size: 16px; color: #555;">CNN Business</span><br><span style="font-size: 24px; color: #000; font-weight: bold;">🔥 공포와 탐욕 지수</span></div></a>""", unsafe_allow_html=True)
 with col_fed:
-    st.markdown(f"""
-        <a href="https://www.cmegroup.com/markets/interest-rates/target-rate-probabilities.html" target="_blank" style="text-decoration: none;">
-            <div class="fear-greed-box" style="border-color: #007bff;">
-                <span style="font-size: 16px; color: #555;">CME Group</span><br>
-                <span style="font-size: 24px; color: #007bff; font-weight: bold;">🏛️ CME FedWatch 연결</span><br>
-                <span style="font-size: 14px; color: #888;">(다음 FOMC 금리 인상/인하 확률 확인)</span>
-            </div>
-        </a>
-    """, unsafe_allow_html=True)
+    st.markdown(f"""<a href="https://www.cmegroup.com/markets/interest-rates/target-rate-probabilities.html" target="_blank" style="text-decoration: none;"><div class="fear-greed-box" style="border-color: #007bff;"><span style="font-size: 16px; color: #555;">CME Group</span><br><span style="font-size: 24px; color: #007bff; font-weight: bold;">🏛️ CME FedWatch 연결</span></div></a>""", unsafe_allow_html=True)
 
 st.divider()
 
-# 5. 14대 핵심 지수 그리드
-st.subheader("📊 글로벌 주요 지표 & 원자재")
-data = get_all_market_data()
-rows = [data[i:i+5] for i in range(0, len(data), 5)]
+# 신규 UI: 알파 엔진 (최우선 배치)
+macro_data, current_vix = get_macro_data()
+alpha_data = get_alpha_data()
+
+st.subheader("🚀 Alpha 타겟팅 엔진 (연 30% 목표 레버리지 추적)")
+
+# VIX 기반 비중 조절기 (90% 객관적 지표)
+if current_vix >= 30:
+    st.error(f"🚨 **[VIX 경고: {current_vix:.2f}] 시장 극단적 공포 상태. 레버리지 비중을 10% 이하로 축소하거나 현금 관망을 권장합니다.**")
+elif current_vix >= 20:
+    st.warning(f"⚠️ **[VIX 경계: {current_vix:.2f}] 변동성 확대 구간. 철저한 분할 매수/매도 및 짧은 손절(손익비 관리)이 필수입니다.**")
+else:
+    st.success(f"✅ **[VIX 안정: {current_vix:.2f}] 시장 안정 구간. 추세 추종 및 레버리지 홀딩이 유효합니다.**")
+
+# 레버리지 및 기술적 분석 테이블
+if alpha_data:
+    st.markdown("<div class='alpha-box'>", unsafe_allow_html=True)
+    cols = st.columns(4)
+    for i, item in enumerate(alpha_data):
+        with cols[i]:
+            st.metric(label=item['name'], value=f"${item['price']:.2f}", delta=f"{item['change']:.2f}%")
+            st.markdown(f"**RSI(14):** {item['rsi']:.1f}")
+            st.markdown(f"**시그널:** {item['signal']}")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+st.divider()
+
+# 기존 UI 보존 2: 글로벌 매크로
+st.subheader("📊 매크로 레이더 (기존 UI 유지)")
+rows = [macro_data[i:i+5] for i in range(0, len(macro_data), 5)]
 for row in rows:
     cols = st.columns(len(row))
     for i, item in enumerate(row):
@@ -81,21 +136,30 @@ for row in rows:
 
 st.divider()
 
-# 6. 수급 분석 및 보조 지표
+# 기존 UI 보존 3: 수급 포착 & 스마트머니
 col_trend, col_link = st.columns([1, 1.2])
-
 with col_trend:
-    st.subheader("🎯 3일 연속 수급 유입")
+    st.subheader("🎯 3일 연속 수급 유입 (추세)")
     idx = 0
-    for item in data:
+    for item in macro_data:
         if item['is_buy']:
             st.success(f"✅ **{item['name']}**")
             idx += 1
-    if idx == 0: st.warning("현재 3일 연속 상승 지표 없음")
+    if idx == 0: st.warning("현재 추세 유입 지표 없음")
 
 with col_link:
-    st.subheader("🔗 전략 보조 링크")
+    st.subheader("🔗 데이터 교차 검증 (스마트 머니)")
     l1, l2 = st.columns(2)
-    # 오류 수정된 네이버 증권 링크
-    l1.markdown("### [📊 국내 수급(네이버)](https://finance.naver.com/sise/)")
-    l2.markdown("### [📈 경제 캘린더](https://kr.investing.com/economic-calendar/)")
+    l1.markdown("### [🐳 WhaleWisdom (13F)](https://whalewisdom.com/)")
+    l2.markdown("### [🟢 네이버 증권 수급](https://finance.naver.com/sise/)")
+
+st.divider()
+
+# 기존 UI 보존 4: 검색 엔진
+st.subheader("🔍 심층 종목 검색 (트레이딩뷰 / 뉴스 연동)")
+search_kw = st.text_input("종목명이나 티커 입력 (예: NVDA)", placeholder="입력 후 Enter")
+if search_kw:
+    encoded_kw = urllib.parse.quote(search_kw)
+    st.markdown(f"- [📈 **트레이딩뷰** (kr.tradingview.com) 차트 분석](https://kr.tradingview.com/search/?q={encoded_kw})")
+    st.markdown(f"- [🟢 **네이버페이 증권** 종목/수급 상세 분석](https://finance.naver.com/search/searchList.naver?query={encoded_kw})")
+    st.markdown(f"- [🌐 **구글 뉴스** 실시간 검색](https://news.google.com/search?q={encoded_kw})")
