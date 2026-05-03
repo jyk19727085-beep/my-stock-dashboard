@@ -5,7 +5,7 @@ from datetime import datetime
 import urllib.parse
 
 # 1. 페이지 설정
-st.set_page_config(page_title="Daniel Alpha System Ver 7.6", layout="wide")
+st.set_page_config(page_title="Daniel Alpha System Ver 7.7", layout="wide")
 st.markdown("""
     <style>
     [data-testid="stMetricValue"] { font-size: 22px; font-weight: bold; }
@@ -23,17 +23,15 @@ st.markdown("""
 # --- 공통 MACD 추세 전환 판별 함수 ---
 def check_trend_reversal(df):
     if len(df) < 35: return False
-    # MACD 계산 (12, 26, 9) - 6개월치 데이터로 EMA 왜곡 원천 차단
     exp1 = df['Close'].ewm(span=12, adjust=False).mean()
     exp2 = df['Close'].ewm(span=26, adjust=False).mean()
     macd = exp1 - exp2
     signal = macd.ewm(span=9, adjust=False).mean()
     hist = macd - signal
-    # 최근 1~3일 내에 히스토그램이 음수에서 양수(골든크로스)로 턴어라운드 했는지 확인
     is_reversal = (hist.iloc[-1] > 0) and (hist.iloc[-4:-1].min() <= 0)
     return is_reversal
 
-# 2. 데이터 엔진 1: 기본 매크로 지표 (사일런트 페일 방지 적용)
+# 2. 데이터 엔진 1: 기본 매크로 지표
 @st.cache_data(ttl=300)
 def get_macro_data():
     tickers = {
@@ -47,7 +45,7 @@ def get_macro_data():
     for name, symbol in tickers.items():
         try:
             t = yf.Ticker(symbol)
-            df = t.history(period="6mo") # MACD 정확도를 위해 6개월치 호출
+            df = t.history(period="6mo") 
             if df.empty or len(df) < 2:
                 results.append({"name": name, "error": True})
                 continue
@@ -146,8 +144,8 @@ def get_broad_trend():
     return results
 
 # --- 화면 출력 시작 ---
-st.title("🏛️ Daniel's 연 30% 타겟팅 상황실 (Ver 7.6)")
-st.write(f"✅ 무결점 데이터 & 비중 조절 룰 적용 완료: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+st.title("🏛️ Daniel's 연 30% 타겟팅 상황실 (Ver 7.7)")
+st.write(f"✅ 검색 엔진 버튼형 강제 실행 패치 완료: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 # 공포 탐욕 & 페드워치
 col_fg, col_fed = st.columns(2)
@@ -244,11 +242,20 @@ for row in rows:
 
 st.divider()
 
-# 심층 검색 엔진 및 소셜 미디어 복구
+# 💡 [핵심 패치 구역] 먹통 완벽 해결을 위한 '버튼형 폼(Form)' 검색 엔진
 st.subheader("🔍 심층 종목 & 실시간 군중 심리 검색")
-search_kw = st.text_input("종목명(삼성전자), 티커(NVDA), 종목코드(005930), 또는 경제 키워드 입력", placeholder="입력 후 Enter 키를 누르세요")
+st.info("👇 종목명, 티커, 코드를 입력하고 **반드시 [심층 분석 실행] 버튼을 눌러주세요.**")
 
-if search_kw:
+# Streamlit Form을 사용하여 모바일 먹통 현상 원천 차단
+with st.form(key='search_form'):
+    col_input, col_btn = st.columns([4, 1])
+    with col_input:
+        search_kw = st.text_input("종목명(삼성전자), 티커(NVDA), 종목코드(005930)", label_visibility="collapsed", placeholder="예: 삼성전자, NVDA, 005930")
+    with col_btn:
+        submit_search = st.form_submit_button("🔍 심층 분석 실행", use_container_width=True)
+
+# 버튼이 눌렸을 때만 링크 박스가 뜨도록 설정
+if submit_search and search_kw:
     search_kw = search_kw.strip()
     encoded_kw = urllib.parse.quote(search_kw)
     
@@ -262,12 +269,11 @@ if search_kw:
         
     yahoo_url = f"https://finance.yahoo.com/lookup?s={encoded_kw}"
     google_url = f"https://news.google.com/search?q={encoded_kw}"
-    # 복구된 실시간 소셜 미디어 트렌드 링크 (군중 심리 파악용)
     twitter_url = f"https://twitter.com/search?q={encoded_kw}&src=typed_query&f=live"
 
-    st.markdown(f"**✅ '{search_kw}' 팩트 체크 및 심리 분석 파이프라인**")
-    st.markdown(f"- [🟢 **네이버페이 증권** (수급 및 재무)]({naver_url})")
-    st.markdown(f"- [📈 **TradingView** (글로벌 차트)]({tv_url})")
-    st.markdown(f"- [🇺🇸 **Yahoo Finance** (스마트머니 툴)]({yahoo_url})")
-    st.markdown(f"- [🌐 **구글 뉴스** (실시간 시황)]({google_url})")
-    st.markdown(f"- [📱 **X(트위터) 실시간 반응** (군중 심리 및 루머 체크)]({twitter_url})")
+    st.success(f"**✅ '{search_kw}' 팩트 체크 파이프라인 가동 완료 (링크를 터치하세요)**")
+    st.markdown(f"### [🟢 **네이버페이 증권** (수급/재무 바로가기)]({naver_url})")
+    st.markdown(f"### [📈 **TradingView** (글로벌 차트 바로가기)]({tv_url})")
+    st.markdown(f"### [🇺🇸 **Yahoo Finance** (스마트머니 툴 바로가기)]({yahoo_url})")
+    st.markdown(f"### [🌐 **구글 뉴스** (실시간 시황 바로가기)]({google_url})")
+    st.markdown(f"### [📱 **X(트위터)** (군중 심리/루머 바로가기)]({twitter_url})")
