@@ -5,7 +5,7 @@ from datetime import datetime
 import urllib.parse
 
 # 1. 페이지 설정
-st.set_page_config(page_title="Daniel Alpha System Ver 7.7", layout="wide")
+st.set_page_config(page_title="Daniel Alpha System Ver 7.8", layout="wide")
 st.markdown("""
     <style>
     [data-testid="stMetricValue"] { font-size: 22px; font-weight: bold; }
@@ -144,8 +144,8 @@ def get_broad_trend():
     return results
 
 # --- 화면 출력 시작 ---
-st.title("🏛️ Daniel's 연 30% 타겟팅 상황실 (Ver 7.7)")
-st.write(f"✅ 검색 엔진 버튼형 강제 실행 패치 완료: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+st.title("🏛️ Daniel's 연 30% 타겟팅 상황실 (Ver 7.8)")
+st.write(f"✅ 네이버 툴 제거 및 글로벌 최적화 툴 적용 완료: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 # 공포 탐욕 & 페드워치
 col_fg, col_fed = st.columns(2)
@@ -170,7 +170,7 @@ else:
     st.success(f"✅ **[VIX 안정: {current_vix:.2f}] 시장 안정 구간.**")
     st.markdown("<div class='rule-box'><b>📈 모네타의 비중 조절 룰:</b> 단일 종목 최대 투자 비중 30% 허용. 추세 전환 시그널(🔄) 발생 시 적극 매수 유효.</div>", unsafe_allow_html=True)
 
-st.write("") # 간격 조정
+st.write("") 
 
 if alpha_data:
     st.markdown("<div class='alpha-box'>", unsafe_allow_html=True)
@@ -242,11 +242,10 @@ for row in rows:
 
 st.divider()
 
-# 💡 [핵심 패치 구역] 먹통 완벽 해결을 위한 '버튼형 폼(Form)' 검색 엔진
+# 💡 [핵심 패치 구역] 먹통 네이버 삭제 & 글로벌 메이저 툴 연동
 st.subheader("🔍 심층 종목 & 실시간 군중 심리 검색")
 st.info("👇 종목명, 티커, 코드를 입력하고 **반드시 [심층 분석 실행] 버튼을 눌러주세요.**")
 
-# Streamlit Form을 사용하여 모바일 먹통 현상 원천 차단
 with st.form(key='search_form'):
     col_input, col_btn = st.columns([4, 1])
     with col_input:
@@ -254,7 +253,6 @@ with st.form(key='search_form'):
     with col_btn:
         submit_search = st.form_submit_button("🔍 심층 분석 실행", use_container_width=True)
 
-# 버튼이 눌렸을 때만 링크 박스가 뜨도록 설정
 if submit_search and search_kw:
     search_kw = search_kw.strip()
     encoded_kw = urllib.parse.quote(search_kw)
@@ -262,7 +260,12 @@ if submit_search and search_kw:
     is_code = search_kw.isdigit() and len(search_kw) == 6
     is_korean = any(ord(c) >= 0xAC00 and ord(c) <= 0xD7A3 for c in search_kw)
     
-    naver_url = f"https://m.stock.naver.com/search/result/{encoded_kw}"
+    # [수정 사항 1] 네이버페이 증권 제거 -> Investing.com 통합 검색으로 대체 (한국/미국 모두 커버, 에러 없음)
+    investing_url = f"https://kr.investing.com/search/?q={encoded_kw}"
+    
+    # [수정 사항 2] 미국 주식 전용 Finviz 스크리너 추가 (월가 스마트머니 필수 툴)
+    finviz_url = f"https://finviz.com/quote.ashx?t={search_kw.upper()}" if not (is_code or is_korean) else "https://finviz.com/"
+
     if is_code: tv_url = f"https://kr.tradingview.com/chart/?symbol=KRX%3A{search_kw}"
     elif is_korean: tv_url = f"https://kr.tradingview.com/search/?q={encoded_kw}"
     else: tv_url = f"https://kr.tradingview.com/chart/?symbol={search_kw.upper()}"
@@ -271,9 +274,15 @@ if submit_search and search_kw:
     google_url = f"https://news.google.com/search?q={encoded_kw}"
     twitter_url = f"https://twitter.com/search?q={encoded_kw}&src=typed_query&f=live"
 
-    st.success(f"**✅ '{search_kw}' 팩트 체크 파이프라인 가동 완료 (링크를 터치하세요)**")
-    st.markdown(f"### [🟢 **네이버페이 증권** (수급/재무 바로가기)]({naver_url})")
+    st.success(f"**✅ '{search_kw}' 글로벌 심층 분석 파이프라인 가동 완료**")
+    
+    # 한국 주식도 에러 없이 완벽 지원하는 Investing.com을 최상단 배치
+    st.markdown(f"### [📊 **Investing.com** (글로벌 1위 통합 수급/재무/실적)]({investing_url})")
     st.markdown(f"### [📈 **TradingView** (글로벌 차트 바로가기)]({tv_url})")
+    
+    if not (is_code or is_korean):
+        st.markdown(f"### [🇺🇸 **Finviz Screener** (미국주식 공매도/기관 보유량 추적)]({finviz_url})")
+        
     st.markdown(f"### [🇺🇸 **Yahoo Finance** (스마트머니 툴 바로가기)]({yahoo_url})")
     st.markdown(f"### [🌐 **구글 뉴스** (실시간 시황 바로가기)]({google_url})")
     st.markdown(f"### [📱 **X(트위터)** (군중 심리/루머 바로가기)]({twitter_url})")
